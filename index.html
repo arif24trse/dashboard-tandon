@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Smart Home - Dashboard Tandon Air</title>
+    <!-- Library Paho MQTT JavaScript -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/paho-mqtt/1.0.1/mqttws31.min.js"></script>
+    <style>
+        * { box-sizing: border-box; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        body { background-color: #0f172a; color: #f8fafc; margin: 0; padding: 20px; display: flex; justify-content: center; }
+        .container { width: 100%; max-width: 450px; background: #1e293b; padding: 20px; border-radius: 16px; box-shadow: 0 10px 25px rgba(0,0,0,0.5); }
+        h2 { text-align: center; margin: 0 0 5px 0; color: #38bdf8; }
+        .status-bar { text-align: center; font-size: 13px; margin-bottom: 20px; color: #94a3b8; }
+        .connected { color: #4ade80; font-weight: bold; }
+        .disconnected { color: #f87171; font-weight: bold; }
+
+        /* Tangki Air Visual */
+        .tank-wrapper { display: flex; justify-content: center; margin: 15px 0; }
+        .tank { width: 130px; height: 190px; border: 4px solid #475569; border-radius: 12px; position: relative; overflow: hidden; background: #0f172a; }
+        .water { position: absolute; bottom: 0; width: 100%; background: linear-gradient(180deg, #38bdf8, #0284c7); height: 0%; transition: height 0.5s ease-in-out; }
+        .percentage-text { position: absolute; width: 100%; text-align: center; top: 40%; font-size: 24px; font-weight: bold; color: #ffffff; text-shadow: 0 2px 4px rgba(0,0,0,0.8); z-index: 2; }
+
+        /* Card & Grid */
+        .card { background: #334155; padding: 15px; border-radius: 10px; margin-bottom: 12px; }
+        .flex-between { display: flex; justify-content: space-between; align-items: center; }
+        .label { font-size: 14px; color: #cbd5e1; }
+        .value { font-size: 16px; font-weight: bold; color: #f8fafc; }
+        
+        /* Tombol & Kontrol */
+        .btn-group { display: flex; gap: 8px; margin-top: 10px; }
+        button { flex: 1; padding: 10px; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; transition: 0.2s; }
+        .btn-auto { background-color: #0284c7; color: white; }
+        .btn-manual { background-color: #d97706; color: white; }
+        .btn-on { background-color: #16a34a; color: white; }
+        .btn-off { background-color: #dc2626; color: white; }
+        .btn-mute { background-color: #64748b; color: white; }
+        .btn-reset { background-color: #7c3aed; color: white; width: 100%; margin-top: 10px; }
+        button:hover { opacity: 0.85; }
+        button:disabled { background-color: #475569; cursor: not-allowed; opacity: 0.5; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h2>Smart Home Tandon</h2>
+    <div class="status-bar">Server MQTT: <span id="status" class="disconnected">Terputus</span></div>
+
+    <!-- Visual Tangki Air -->
+    <div class="tank-wrapper">
+        <div class="tank">
+            <div class="percentage-text" id="water-percent">--- %</div>
+            <div class="water" id="water-level" style="height: 0%;"></div>
+        </div>
+    </div>
+
+    <!-- Informative Data -->
+    <div class="card flex-between">
+        <span class="label">Tinggi Air:</span>
+        <span class="value" id="water-height">--- cm</span>
+    </div>
+
+    <!-- Mode Sistem -->
+    <div class="card">
+        <div class="flex-between">
+            <span class="label">Mode Sistem:</span>
+            <span class="value" id="current-mode">AUTO</span>
+        </div>
+        <div class="btn-group">
+            <button class="btn-auto" onclick="setMode('AUTO')">AUTO</button>
+            <button class="btn-manual" onclick="setMode('MANUAL')">MANUAL</button>
+        </div>
+    </div>
+
+    <!-- Status Pompa -->
+    <div class="card">
+        <div class="flex-between">
+            <span class="label">Status Pompa:</span>
+            <span class="value" id="pump-status">OFF</span>
+        </div>
+        <div class="btn-group">
+            <button class="btn-on" id="btn-pump-on" onclick="controlPump('ON')">Nyalakan</button>
+            <button class="btn-off" id="btn-pump-off" onclick="controlPump('OFF')">Matikan</button>
+        </div>
+    </div>
+
+    <!-- Buzzer & System Reset -->
+    <div class="card">
+        <div class="flex-between">
+            <span class="label">Suara Buzzer:</span>
+            <span class="value" id="buzzer-status">ON</span>
+        </div>
+        <div class="btn-group">
+            <button class="btn-mute" id="btn-buzzer-toggle" onclick="toggleBuzzer()">Mute / Unmute</button>
+        </div>
+        <button class="btn-reset" onclick="resetDevice()">Reboot ESP32</button>
+    </div>
+</div>
+
+<script>
+    // Configuration HiveMQ Cloud SSL/TLS
+    const MQTT_BROKER = "941be002ec5e47869861c1c75a6fcdc0.s1.eu.hivemq.cloud";
+    const MQTT_PORT = 8884; // WebSocket Secure Port
+    const MQTT_USER = "arif";
+    const MQTT_PASS = "smarthome123";
+    const CLIENT_ID = "WebDash_" + Math.random().toString(16).substr(2, 8);
+
+    // Dynamic Variables
+    let currentBuzzerState = "ON";
+
+    // Initialize Paho MQTT Client
+    const client = new Paho.MQTT.Client(MQTT_BROKER, Number(MQTT_PORT), CLIENT_ID);
+
+    client.onConnectionLost = onConnectionLost;
+    client.onMessageArrived = onMessageArrived;
+
+    // Connect to HiveMQ Cloud SSL
+    client.connect({
+        onSuccess: onConnect,
+        onFailure: function(err) {
+            console.log("Koneksi Gagal: ", err);
+            document.getElementById("status").innerText = "Gagal Konek";
+        },
+        userName: MQTT_USER,
+        password: MQTT_PASS,
+        useSSL: true
+    });
+
+    function onConnect() {
+        document.getElementById("status").innerText = "Terhubung";
+        document.getElementById("status").className = "connected";
+
+        // Subscribe All Required Topics
+        client.subscribe("smarthome/air/persen");
+        client.subscribe("smarthome/air/tinggi");
+        client.subscribe("smarthome/pompa/status");
+        client.subscribe("smarthome/mode/status");
+        client.subscribe("smarthome/buzzer/status");
+    }
+
+    function onConnectionLost(responseObject) {
+        document.getElementById("status").innerText = "Terputus";
+        document.getElementById("status").className = "disconnected";
+    }
+
+    // Message Data Handler
+    function onMessageArrived(message) {
+        const topic = message.destinationName;
+        const payload = message.payloadString;
+
+        if (topic === "smarthome/air/persen") {
+            document.getElementById("water-percent").innerText = payload + "%";
+            document.getElementById("water-level").style.height = payload + "%";
+        } 
+        else if (topic === "smarthome/air/tinggi") {
+            document.getElementById("water-height").innerText = payload === "INIT" ? "Inisialisasi..." : payload + " cm";
+        } 
+        else if (topic === "smarthome/pompa/status") {
+            document.getElementById("pump-status").innerText = payload;
+        } 
+        else if (topic === "smarthome/mode/status") {
+            document.getElementById("current-mode").innerText = payload;
+            
+            // Enable/Disable Manual Controls
+            const isManual = (payload === "MANUAL");
+            document.getElementById("btn-pump-on").disabled = !isManual;
+            document.getElementById("btn-pump-off").disabled = !isManual;
+        }
+        else if (topic === "smarthome/buzzer/status") {
+            currentBuzzerState = payload;
+            document.getElementById("buzzer-status").innerText = payload;
+        }
+    }
+
+    // MQTT Publish Command Wrapper
+    function publishMessage(topic, payload) {
+        if (client.isConnected()) {
+            const message = new Paho.MQTT.Message(payload);
+            message.destinationName = topic;
+            message.retained = false;
+            client.send(message);
+        } else {
+            alert("Terputus dari server MQTT!");
+        }
+    }
+
+    function controlPump(state) {
+        publishMessage("smarthome/pompa/control", state);
+    }
+
+    function setMode(mode) {
+        publishMessage("smarthome/mode", mode);
+    }
+
+    function toggleBuzzer() {
+        const targetState = (currentBuzzerState === "ON") ? "OFF" : "ON";
+        publishMessage("smarthome/buzzer", targetState);
+    }
+
+    function resetDevice() {
+        if (confirm("Apakah Anda yakin ingin melakukan Reboot pada ESP32?")) {
+            publishMessage("smarthome/reset", "RESET");
+        }
+    }
+</script>
+
+</body>
+</html>
