@@ -2,13 +2,14 @@
    1. KONFIGURASI KONEKSI MQTT (HIVEMQ CLOUD WEBSOCKET)
    ========================================================================= */
 const MQTT_HOST = "941be002ec5e47869861c1c75a6fcdc0.s1.eu.hivemq.cloud";
-const MQTT_PORT = 8843; 
+const MQTT_PORT = 8884; // Port WebSocket SSL HiveMQ Cloud
+const MQTT_PATH = "/mqtt";
 const MQTT_USER = "arif";
 const MQTT_PASS = "smarthome123";
 
 const CLIENT_ID = "WebDashboard_" + Math.random().toString(16).substr(2, 8);
 
-// Topic Sesuai Kode ESP32 Kamu
+// Topic Sesuai ESP32
 const TOPIC_SUB_AIR_PERSEN   = "smarthome/air/persen";
 const TOPIC_SUB_AIR_TINGGI   = "smarthome/air/tinggi";
 const TOPIC_SUB_POMPA_STATUS = "smarthome/pompa/status";
@@ -21,7 +22,7 @@ const TOPIC_CMD_MODE   = "smarthome/mode";
 const TOPIC_CMD_BUZZER = "smarthome/buzzer";
 const TOPIC_CMD_RESET  = "smarthome/reset";
 
-var client = new Paho.MQTT.Client(MQTT_HOST, Number(MQTT_PORT), CLIENT_ID);
+var client = new Paho.MQTT.Client(MQTT_HOST, Number(MQTT_PORT), MQTT_PATH, CLIENT_ID);
 
 client.onConnectionLost = onConnectionLost;
 client.onMessageArrived = onMessageArrived;
@@ -29,7 +30,7 @@ client.onMessageArrived = onMessageArrived;
 connectMQTT();
 
 function connectMQTT() {
-    console.log("Menghubungkan ke HiveMQ Cloud...");
+    console.log("Menghubungkan ke HiveMQ Cloud via WebSocket...");
     var options = {
         timeout: 10,
         useSSL: true,
@@ -107,7 +108,7 @@ function sendMQTTCommand(topic, payload) {
         client.send(message);
         console.log(`[MQTT OUT] ${topic} -> ${payload}`);
     } else {
-        alert("Server MQTT masih terputus! Pastikan koneksi internet lancar.");
+        alert("Server MQTT masih terputus! Periksa koneksi internet.");
     }
 }
 
@@ -139,7 +140,7 @@ function updatePillValue(elementId, value) {
 }
 
 /* =========================================================================
-   3. ANIMASI TAMPILAN AIR TANDON
+   3. TAMPILAN VISUAL AIR TANDON
    ========================================================================= */
 function updateWaterUI(percentage, distance) {
     const percentElem = document.getElementById('water-percentage');
