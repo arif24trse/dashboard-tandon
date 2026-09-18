@@ -1,15 +1,14 @@
 /* =========================================================================
-   1. KONFIGURASI KONEKSI MQTT (SESUAI FIRMWARE ESP32)
+   1. KONFIGURASI KONEKSI MQTT (HIVEMQ CLOUD)
    ========================================================================= */
-// Broker WebSocket HiveMQ Cloud
 const MQTT_HOST = "941be002ec5e47869861c1c75a6fcdc0.s1.eu.hivemq.cloud";
-const MQTT_PORT = 8843; // Port WSS HiveMQ Cloud (Websocket Secure)
+const MQTT_PORT = 8843; 
 const MQTT_USER = "arif";
 const MQTT_PASS = "smarthome123";
 
 const CLIENT_ID = "WebDashboard_" + Math.random().toString(16).substr(2, 8);
 
-// Subscriptions & Commands Topics (Sesuai ESP32)
+// Subscriptions & Commands Topics
 const TOPIC_SUB_AIR_PERSEN   = "smarthome/air/persen";
 const TOPIC_SUB_AIR_TINGGI   = "smarthome/air/tinggi";
 const TOPIC_SUB_POMPA_STATUS = "smarthome/pompa/status";
@@ -22,13 +21,11 @@ const TOPIC_CMD_MODE   = "smarthome/mode";
 const TOPIC_CMD_BUZZER = "smarthome/buzzer";
 const TOPIC_CMD_RESET  = "smarthome/reset";
 
-// Inisialisasi Paho MQTT Client
 const client = new Paho.MQTT.Client(MQTT_HOST, Number(MQTT_PORT), CLIENT_ID);
 
 client.onConnectionLost = onConnectionLost;
 client.onMessageArrived = onMessageArrived;
 
-// Memulai Koneksi MQTT
 connectMQTT();
 
 function connectMQTT() {
@@ -45,10 +42,9 @@ function connectMQTT() {
 }
 
 function onConnect() {
-    console.log("Terhubung ke MQTT Broker HiveMQ Cloud!");
+    console.log("Terhubung ke MQTT Broker!");
     updateServerStatus(true);
 
-    // Subscribe ke semua topic status dari ESP32
     client.subscribe(TOPIC_SUB_AIR_PERSEN);
     client.subscribe(TOPIC_SUB_AIR_TINGGI);
     client.subscribe(TOPIC_SUB_POMPA_STATUS);
@@ -58,24 +54,24 @@ function onConnect() {
 }
 
 function onFailure(responseObject) {
-    console.error("Gagal terhubung ke MQTT: " + responseObject.errorMessage);
+    console.error("Gagal terhubung: " + responseObject.errorMessage);
     updateServerStatus(false);
     setTimeout(connectMQTT, 5000);
 }
 
 function onConnectionLost(responseObject) {
     if (responseObject.errorCode !== 0) {
-        console.warn("Koneksi MQTT Terputus: " + responseObject.errorMessage);
+        console.warn("Koneksi Terputus: " + responseObject.errorMessage);
         updateServerStatus(false);
         setTimeout(connectMQTT, 3000);
     }
 }
 
 /* =========================================================================
-   2. MENERIMA DATA TELEMETRI DARI ESP32
+   2. MENERIMA DATA SENSOR & STATUS DARI ESP32
    ========================================================================= */
-let currentPersen = 0;
-let currentJarak = 0;
+let currentPersen = "INIT";
+let currentJarak = "INIT";
 
 function onMessageArrived(message) {
     const topic = message.destinationName;
@@ -84,16 +80,12 @@ function onMessageArrived(message) {
     console.log(`[MQTT IN] ${topic} -> ${payload}`);
 
     if (topic === TOPIC_SUB_AIR_PERSEN) {
-        if (payload !== "INIT") {
-            currentPersen = parseFloat(payload) || 0;
-            updateWaterUI(currentPersen, currentJarak);
-        }
+        currentPersen = (payload === "INIT") ? "INIT" : parseFloat(payload);
+        updateWaterUI(currentPersen, currentJarak);
     } 
     else if (topic === TOPIC_SUB_AIR_TINGGI) {
-        if (payload !== "INIT") {
-            currentJarak = parseFloat(payload) || 0;
-            updateWaterUI(currentPersen, currentJarak);
-        }
+        currentJarak = (payload === "INIT") ? "INIT" : parseFloat(payload);
+        updateWaterUI(currentPersen, currentJarak);
     } 
     else if (topic === TOPIC_SUB_POMPA_STATUS) {
         updatePillValue('pump-value', payload);
@@ -102,14 +94,13 @@ function onMessageArrived(message) {
         updatePillValue('mode-value', payload);
     } 
     else if (topic === TOPIC_SUB_BUZZER_STATUS) {
-        // ESP membalas "OFF" untuk MUTE, dan "ON" untuk UNMUTE
         const buzzerDisplay = (payload === "OFF") ? "MUTE" : "ON";
         updatePillValue('buzzer-value', buzzerDisplay);
     }
 }
 
 /* =========================================================================
-   3. KONTROL TOMBOL WEB DASHBOARD (PUBLISH COMMAND KE ESP32)
+   3. KONTROL TOMBOL (LANGSUNG EXECUTE TANPA TUNGGU SENSOR READY)
    ========================================================================= */
 function sendMQTTCommand(topic, payload) {
     if (client.isConnected()) {
@@ -119,7 +110,7 @@ function sendMQTTCommand(topic, payload) {
         client.send(message);
         console.log(`[MQTT OUT] ${topic} -> ${payload}`);
     } else {
-        alert("Gagal mengirim perintah: Koneksi MQTT sedang terputus!");
+        alert("Koneksi MQTT ke server sedang terputus!");
     }
 }
 
@@ -134,14 +125,13 @@ function controlPump(state) {
 }
 
 function controlBuzzer(state) {
-    // Menyesuaikan payload perintah buzzer sesuai kode ESP32 ("MUTE" / "UNMUTE")
     const payload = (state === "MUTE") ? "MUTE" : "ON";
     updatePillValue('buzzer-value', state);
     sendMQTTCommand(TOPIC_CMD_BUZZER, payload);
 }
 
 function rebootESP() {
-    if (confirm("Apakah Anda yakin ingin melakukan Reboot Perangkat ESP32?")) {
+    if (confirm("Apakah Anda yakin ingin merestart perangkat ESP32?")) {
         sendMQTTCommand(TOPIC_CMD_RESET, "RESET");
     }
 }
@@ -152,40 +142,55 @@ function updatePillValue(elementId, value) {
 }
 
 /* =========================================================================
-   4. TAMPILAN DINAMIS TANDON AIR & TRANSIKSI WARNA
+   4. PERUBAHAN TAMPILAN VISUAL WATER TANK
    ========================================================================= */
 function updateWaterUI(percentage, distance) {
-    percentage = Math.max(0, Math.min(100, parseFloat(percentage) || 0));
-
-    // Update Angka Persentase dan Tinggi Air
     const percentElem = document.getElementById('water-percentage');
     const distElem = document.getElementById('water-distance');
-    if (percentElem) percentElem.innerText = percentage.toFixed(0) + '%';
-    if (distElem) distElem.innerText = (distance !== undefined ? distance : '---') + ' cm';
-
-    // Update Animasi Tinggi & Warna Air Tandon
+    const statusElem = document.getElementById('water-status');
     const fillElem = document.getElementById('water-fill');
-    if (fillElem) {
-        fillElem.style.height = percentage + '%';
-        fillElem.style.background = getWaterGradient(percentage);
+
+    // Jika sensor masih inisialisasi
+    if (percentage === "INIT" || distance === "INIT") {
+        if (percentElem) percentElem.innerText = "INIT...";
+        if (distElem) distElem.innerText = "INIT...";
+        if (fillElem) {
+            fillElem.style.height = '0%';
+            fillElem.style.background = 'linear-gradient(180deg, #94a3b8 0%, #64748b 100%)';
+        }
+        if (statusElem) {
+            statusElem.innerText = "INIT";
+            statusElem.style.backgroundColor = "#e2e8f0";
+            statusElem.style.color = "#475569";
+        }
+        return;
     }
 
-    // Update Badge Status Air
-    const statusElem = document.getElementById('water-status');
+    // Pembacaan sensor normal
+    let pctNum = Math.max(0, Math.min(100, parseFloat(percentage) || 0));
+
+    if (percentElem) percentElem.innerText = pctNum.toFixed(0) + '%';
+    if (distElem) distElem.innerText = (distance !== undefined ? distance : '---') + ' cm';
+
+    if (fillElem) {
+        fillElem.style.height = pctNum + '%';
+        fillElem.style.background = getWaterGradient(pctNum);
+    }
+
     if (statusElem) {
         let statusText = "NORMAL";
         let statusBg = "#dcfce7";
         let statusColor = "#15803d";
 
-        if (percentage <= 15) {
+        if (pctNum <= 15) {
             statusText = "KOSONG";
             statusBg = "#fee2e2";
             statusColor = "#991b1b";
-        } else if (percentage <= 35) {
+        } else if (pctNum <= 35) {
             statusText = "RENDAH";
             statusBg = "#ffedd5";
             statusColor = "#c2410c";
-        } else if (percentage <= 75) {
+        } else if (pctNum <= 75) {
             statusText = "NORMAL";
             statusBg = "#dcfce7";
             statusColor = "#15803d";
@@ -203,7 +208,6 @@ function updateWaterUI(percentage, distance) {
 
 function getWaterGradient(pct) {
     let r, g, b;
-
     if (pct <= 25) {
         let factor = pct / 25;
         r = Math.round(238 + (255 - 238) * factor);
@@ -225,7 +229,6 @@ function getWaterGradient(pct) {
         g = Math.round(181 + (136 - 181) * factor);
         b = Math.round(116 + (255 - 116) * factor);
     }
-
     return `linear-gradient(180deg, rgba(${r},${g},${b},0.85) 0%, rgb(${r},${g},${b}) 100%)`;
 }
 
