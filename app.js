@@ -1,5 +1,5 @@
 /* =========================================================================
-   1. KONFIGURASI KONEKSI MQTT (HIVEMQ CLOUD)
+   1. KONFIGURASI KONEKSI MQTT (HIVEMQ CLOUD WEBSOCKET)
    ========================================================================= */
 const MQTT_HOST = "941be002ec5e47869861c1c75a6fcdc0.s1.eu.hivemq.cloud";
 const MQTT_PORT = 8843; 
@@ -8,7 +8,7 @@ const MQTT_PASS = "smarthome123";
 
 const CLIENT_ID = "WebDashboard_" + Math.random().toString(16).substr(2, 8);
 
-// Subscriptions & Commands Topics
+// Topic Sesuai Kode ESP32 Kamu
 const TOPIC_SUB_AIR_PERSEN   = "smarthome/air/persen";
 const TOPIC_SUB_AIR_TINGGI   = "smarthome/air/tinggi";
 const TOPIC_SUB_POMPA_STATUS = "smarthome/pompa/status";
@@ -21,7 +21,7 @@ const TOPIC_CMD_MODE   = "smarthome/mode";
 const TOPIC_CMD_BUZZER = "smarthome/buzzer";
 const TOPIC_CMD_RESET  = "smarthome/reset";
 
-const client = new Paho.MQTT.Client(MQTT_HOST, Number(MQTT_PORT), CLIENT_ID);
+var client = new Paho.MQTT.Client(MQTT_HOST, Number(MQTT_PORT), CLIENT_ID);
 
 client.onConnectionLost = onConnectionLost;
 client.onMessageArrived = onMessageArrived;
@@ -30,15 +30,16 @@ connectMQTT();
 
 function connectMQTT() {
     console.log("Menghubungkan ke HiveMQ Cloud...");
-    client.connect({
-        onSuccess: onConnect,
-        onFailure: onFailure,
+    var options = {
+        timeout: 10,
+        useSSL: true,
         userName: MQTT_USER,
         password: MQTT_PASS,
-        useSSL: true,
-        keepAliveInterval: 60,
-        cleanSession: true
-    });
+        onSuccess: onConnect,
+        onFailure: onFailure,
+        keepAliveInterval: 30
+    };
+    client.connect(options);
 }
 
 function onConnect() {
@@ -68,7 +69,7 @@ function onConnectionLost(responseObject) {
 }
 
 /* =========================================================================
-   2. MENERIMA DATA SENSOR & STATUS DARI ESP32
+   2. PENANGANAN PESAN & KONTROL TOMBOL
    ========================================================================= */
 let currentPersen = "INIT";
 let currentJarak = "INIT";
@@ -99,18 +100,14 @@ function onMessageArrived(message) {
     }
 }
 
-/* =========================================================================
-   3. KONTROL TOMBOL (LANGSUNG EXECUTE TANPA TUNGGU SENSOR READY)
-   ========================================================================= */
 function sendMQTTCommand(topic, payload) {
     if (client.isConnected()) {
-        const message = new Paho.MQTT.Message(payload);
+        var message = new Paho.MQTT.Message(payload);
         message.destinationName = topic;
-        message.retained = false;
         client.send(message);
         console.log(`[MQTT OUT] ${topic} -> ${payload}`);
     } else {
-        alert("Koneksi MQTT ke server sedang terputus!");
+        alert("Server MQTT masih terputus! Pastikan koneksi internet lancar.");
     }
 }
 
@@ -142,7 +139,7 @@ function updatePillValue(elementId, value) {
 }
 
 /* =========================================================================
-   4. PERUBAHAN TAMPILAN VISUAL WATER TANK
+   3. ANIMASI TAMPILAN AIR TANDON
    ========================================================================= */
 function updateWaterUI(percentage, distance) {
     const percentElem = document.getElementById('water-percentage');
@@ -150,7 +147,6 @@ function updateWaterUI(percentage, distance) {
     const statusElem = document.getElementById('water-status');
     const fillElem = document.getElementById('water-fill');
 
-    // Jika sensor masih inisialisasi
     if (percentage === "INIT" || distance === "INIT") {
         if (percentElem) percentElem.innerText = "INIT...";
         if (distElem) distElem.innerText = "INIT...";
@@ -166,7 +162,6 @@ function updateWaterUI(percentage, distance) {
         return;
     }
 
-    // Pembacaan sensor normal
     let pctNum = Math.max(0, Math.min(100, parseFloat(percentage) || 0));
 
     if (percentElem) percentElem.innerText = pctNum.toFixed(0) + '%';
