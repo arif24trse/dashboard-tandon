@@ -1,51 +1,181 @@
 /* =========================================================================
-   PERTAHANKAN KODE AUTENTIKASI & MQTT BROKER LAMA ANDA DI SINI
-   Jangan ganti host, port, topic, username, atau password broker asli.
+   1. KONFIGURASI KONEKSI MQTT (SESUAI FIRMWARE ESP32)
    ========================================================================= */
+// Broker WebSocket HiveMQ Cloud
+const MQTT_HOST = "941be002ec5e47869861c1c75a6fcdc0.s1.eu.hivemq.cloud";
+const MQTT_PORT = 8843; // Port WSS HiveMQ Cloud (Websocket Secure)
+const MQTT_USER = "arif";
+const MQTT_PASS = "smarthome123";
 
-// CONTOH STUB DOKUMENTASI KONEKSI LAMA (GUNAKAN KODE PAHO KONEKSI KANAN ANDA):
-/*
-var client = new Paho.MQTT.Client(MQTT_HOST, Number(MQTT_PORT), "clientId_" + Math.random());
+const CLIENT_ID = "WebDashboard_" + Math.random().toString(16).substr(2, 8);
+
+// Subscriptions & Commands Topics (Sesuai ESP32)
+const TOPIC_SUB_AIR_PERSEN   = "smarthome/air/persen";
+const TOPIC_SUB_AIR_TINGGI   = "smarthome/air/tinggi";
+const TOPIC_SUB_POMPA_STATUS = "smarthome/pompa/status";
+const TOPIC_SUB_MODE_STATUS  = "smarthome/mode/status";
+const TOPIC_SUB_BUZZER_STATUS= "smarthome/buzzer/status";
+const TOPIC_SUB_ESP_STATUS   = "smarthome/status";
+
+const TOPIC_CMD_POMPA  = "smarthome/pompa/control";
+const TOPIC_CMD_MODE   = "smarthome/mode";
+const TOPIC_CMD_BUZZER = "smarthome/buzzer";
+const TOPIC_CMD_RESET  = "smarthome/reset";
+
+// Inisialisasi Paho MQTT Client
+const client = new Paho.MQTT.Client(MQTT_HOST, Number(MQTT_PORT), CLIENT_ID);
+
 client.onConnectionLost = onConnectionLost;
 client.onMessageArrived = onMessageArrived;
-client.connect({ onSuccess: onConnect, onFailure: onFailure, useSSL: true });
-*/
 
-// =========================================================================
-// HELPER PERUBAHAN TAMPILAN DINAMIS (INTEGRASIKAN KEDALAM ONMESSAGEARRIVED)
-// =========================================================================
+// Memulai Koneksi MQTT
+connectMQTT();
 
-/**
- * Panggil fungsi ini di dalam callback MQTT `onMessageArrived(message)`
- * ketika persentase air atau jarak air diperbarui.
- * 
- * @param {number} percentage - Persentase air (0 - 100)
- * @param {number} distance - Jarak sensor dalam cm
- */
+function connectMQTT() {
+    console.log("Menghubungkan ke HiveMQ Cloud...");
+    client.connect({
+        onSuccess: onConnect,
+        onFailure: onFailure,
+        userName: MQTT_USER,
+        password: MQTT_PASS,
+        useSSL: true,
+        keepAliveInterval: 60,
+        cleanSession: true
+    });
+}
+
+function onConnect() {
+    console.log("Terhubung ke MQTT Broker HiveMQ Cloud!");
+    updateServerStatus(true);
+
+    // Subscribe ke semua topic status dari ESP32
+    client.subscribe(TOPIC_SUB_AIR_PERSEN);
+    client.subscribe(TOPIC_SUB_AIR_TINGGI);
+    client.subscribe(TOPIC_SUB_POMPA_STATUS);
+    client.subscribe(TOPIC_SUB_MODE_STATUS);
+    client.subscribe(TOPIC_SUB_BUZZER_STATUS);
+    client.subscribe(TOPIC_SUB_ESP_STATUS);
+}
+
+function onFailure(responseObject) {
+    console.error("Gagal terhubung ke MQTT: " + responseObject.errorMessage);
+    updateServerStatus(false);
+    setTimeout(connectMQTT, 5000);
+}
+
+function onConnectionLost(responseObject) {
+    if (responseObject.errorCode !== 0) {
+        console.warn("Koneksi MQTT Terputus: " + responseObject.errorMessage);
+        updateServerStatus(false);
+        setTimeout(connectMQTT, 3000);
+    }
+}
+
+/* =========================================================================
+   2. MENERIMA DATA TELEMETRI DARI ESP32
+   ========================================================================= */
+let currentPersen = 0;
+let currentJarak = 0;
+
+function onMessageArrived(message) {
+    const topic = message.destinationName;
+    const payload = message.payloadString.trim();
+
+    console.log(`[MQTT IN] ${topic} -> ${payload}`);
+
+    if (topic === TOPIC_SUB_AIR_PERSEN) {
+        if (payload !== "INIT") {
+            currentPersen = parseFloat(payload) || 0;
+            updateWaterUI(currentPersen, currentJarak);
+        }
+    } 
+    else if (topic === TOPIC_SUB_AIR_TINGGI) {
+        if (payload !== "INIT") {
+            currentJarak = parseFloat(payload) || 0;
+            updateWaterUI(currentPersen, currentJarak);
+        }
+    } 
+    else if (topic === TOPIC_SUB_POMPA_STATUS) {
+        updatePillValue('pump-value', payload);
+    } 
+    else if (topic === TOPIC_SUB_MODE_STATUS) {
+        updatePillValue('mode-value', payload);
+    } 
+    else if (topic === TOPIC_SUB_BUZZER_STATUS) {
+        // ESP membalas "OFF" untuk MUTE, dan "ON" untuk UNMUTE
+        const buzzerDisplay = (payload === "OFF") ? "MUTE" : "ON";
+        updatePillValue('buzzer-value', buzzerDisplay);
+    }
+}
+
+/* =========================================================================
+   3. KONTROL TOMBOL WEB DASHBOARD (PUBLISH COMMAND KE ESP32)
+   ========================================================================= */
+function sendMQTTCommand(topic, payload) {
+    if (client.isConnected()) {
+        const message = new Paho.MQTT.Message(payload);
+        message.destinationName = topic;
+        message.retained = false;
+        client.send(message);
+        console.log(`[MQTT OUT] ${topic} -> ${payload}`);
+    } else {
+        alert("Gagal mengirim perintah: Koneksi MQTT sedang terputus!");
+    }
+}
+
+function setSystemMode(mode) {
+    updatePillValue('mode-value', mode);
+    sendMQTTCommand(TOPIC_CMD_MODE, mode);
+}
+
+function controlPump(state) {
+    updatePillValue('pump-value', state);
+    sendMQTTCommand(TOPIC_CMD_POMPA, state);
+}
+
+function controlBuzzer(state) {
+    // Menyesuaikan payload perintah buzzer sesuai kode ESP32 ("MUTE" / "UNMUTE")
+    const payload = (state === "MUTE") ? "MUTE" : "ON";
+    updatePillValue('buzzer-value', state);
+    sendMQTTCommand(TOPIC_CMD_BUZZER, payload);
+}
+
+function rebootESP() {
+    if (confirm("Apakah Anda yakin ingin melakukan Reboot Perangkat ESP32?")) {
+        sendMQTTCommand(TOPIC_CMD_RESET, "RESET");
+    }
+}
+
+function updatePillValue(elementId, value) {
+    const elem = document.getElementById(elementId);
+    if (elem) elem.innerText = value;
+}
+
+/* =========================================================================
+   4. TAMPILAN DINAMIS TANDON AIR & TRANSIKSI WARNA
+   ========================================================================= */
 function updateWaterUI(percentage, distance) {
     percentage = Math.max(0, Math.min(100, parseFloat(percentage) || 0));
-    
-    // 1. Update Teks Persentase & Jarak
+
+    // Update Angka Persentase dan Tinggi Air
     const percentElem = document.getElementById('water-percentage');
     const distElem = document.getElementById('water-distance');
     if (percentElem) percentElem.innerText = percentage.toFixed(0) + '%';
     if (distElem) distElem.innerText = (distance !== undefined ? distance : '---') + ' cm';
 
-    // 2. Adjust Ketinggian Air Visual
+    // Update Animasi Tinggi & Warna Air Tandon
     const fillElem = document.getElementById('water-fill');
     if (fillElem) {
         fillElem.style.height = percentage + '%';
-        
-        // 3. Dynamic Color Transition (Smooth Dynamic Gradient)
         fillElem.style.background = getWaterGradient(percentage);
     }
 
-    // 4. Update Water Status Badge
+    // Update Badge Status Air
     const statusElem = document.getElementById('water-status');
     if (statusElem) {
         let statusText = "NORMAL";
-        let statusBg = "#e2e8f0";
-        let statusColor = "#334155";
+        let statusBg = "#dcfce7";
+        let statusColor = "#15803d";
 
         if (percentage <= 15) {
             statusText = "KOSONG";
@@ -71,18 +201,9 @@ function updateWaterUI(percentage, distance) {
     }
 }
 
-/**
- * Menghitung perpaduan warna air berdasarkan persentase (0% - 100%)
- */
 function getWaterGradient(pct) {
-    // Definisi Warna R,G,B
-    // 0%: Red (238, 93, 80)
-    // 25%: Orange (255, 145, 0)
-    // 50%: Yellow (255, 181, 71)
-    // 75%: Green (1, 181, 116)
-    // 100%: Blue (0, 136, 255)
-
     let r, g, b;
+
     if (pct <= 25) {
         let factor = pct / 25;
         r = Math.round(238 + (255 - 238) * factor);
@@ -108,17 +229,14 @@ function getWaterGradient(pct) {
     return `linear-gradient(180deg, rgba(${r},${g},${b},0.85) 0%, rgb(${r},${g},${b}) 100%)`;
 }
 
-/**
- * Helper untuk mengupdate status server MQTT di UI
- */
 function updateServerStatus(isConnected) {
     const dotElem = document.getElementById('status-dot');
     const textElem = document.getElementById('status-text');
-    
+
     if (isConnected) {
         if (dotElem) dotElem.classList.add('connected');
         if (textElem) {
-            textElem.innerText = "Terhubungs";
+            textElem.innerText = "Terhubung";
             textElem.style.color = "#01b574";
         }
     } else {
