@@ -17,7 +17,7 @@ const TOPIC_SUB_MODE_STATUS  = "smarthome/mode/status";
 const TOPIC_SUB_BUZZER_STATUS= "smarthome/buzzer/status";
 const TOPIC_SUB_ESP_STATUS   = "smarthome/status";
 
-// Topic Khusus Timestamp Retained Anti-Reset
+// Topic Retained Anti-Reset
 const TOPIC_TIMESTAMP_ON    = "smarthome/pompa/time_on";
 const TOPIC_TIMESTAMP_OFF   = "smarthome/pompa/time_off";
 
@@ -58,7 +58,7 @@ function onConnect() {
     client.subscribe(TOPIC_SUB_BUZZER_STATUS);
     client.subscribe(TOPIC_SUB_ESP_STATUS);
     
-    // Subscribe topic timestamp terpusat (Retained)
+    // Subscribe topic timestamp
     client.subscribe(TOPIC_TIMESTAMP_ON);
     client.subscribe(TOPIC_TIMESTAMP_OFF);
 }
@@ -78,14 +78,20 @@ function onConnectionLost(responseObject) {
 }
 
 /* =========================================================================
-   2. VARIABEL & TIMER REALTIME PERSISTEN (ANTI-RESET)
+   2. LOGIKA PERSISTEN TIMER (SANGAT KETAT ANTI-RESET saat REFRESH)
    ========================================================================= */
 let currentPersen = "INIT";
 let currentJarak = "INIT";
 let isPumpOn = false;
-let pumpStartTimestamp = parseInt(localStorage.getItem('pumpStartTimestamp')) || null;
-let lastPumpOffTime = parseInt(localStorage.getItem('lastPumpOffTime')) || null;
 
+// Ambil data timestamp lama yang tersimpan di browser terlebih dahulu
+let savedOn = localStorage.getItem('pumpStartTimestamp');
+let savedOff = localStorage.getItem('lastPumpOffTime');
+
+let pumpStartTimestamp = (savedOn && savedOn !== "null") ? parseInt(savedOn) : null;
+let lastPumpOffTime = (savedOff && savedOff !== "null") ? parseInt(savedOff) : null;
+
+// Loop pembaruan detik setiap 1000ms
 setInterval(updatePumpTimerUI, 1000);
 
 function onMessageArrived(message) {
@@ -105,38 +111,50 @@ function onMessageArrived(message) {
         
         let statusIsOn = (payload.toUpperCase() === "ON");
         
-        if (statusIsOn && !isPumpOn) {
+        if (statusIsOn) {
             isPumpOn = true;
+            // JANGAN RESET jika sudah punya start timestamp yang valid!
             if (!pumpStartTimestamp) {
                 pumpStartTimestamp = Date.now();
-                saveTimestamp(TOPIC_TIMESTAMP_ON, pumpStartTimestamp);
+                saveTimestamp('pumpStartTimestamp', TOPIC_TIMESTAMP_ON, pumpStartTimestamp);
             }
-        } else if (!statusIsOn && isPumpOn) {
-            isPumpOn = false;
-            lastPumpOffTime = Date.now();
-            pumpStartTimestamp = null;
-            saveTimestamp(TOPIC_TIMESTAMP_OFF, lastPumpOffTime);
-            sendMQTTCommand(TOPIC_TIMESTAMP_ON, "", true);
-            localStorage.removeItem('pumpStartTimestamp');
         } else {
-            isPumpOn = statusIsOn;
+            if (isPumpOn) {
+                // Saat mesin baru saja mati
+                isPumpOn = false;
+                lastPumpOffTime = Date.now();
+                saveTimestamp('lastPumpOffTime', TOPIC_TIMESTAMP_OFF, lastPumpOffTime);
+                
+                // Reset Start ON
+                pumpStartTimestamp = null;
+                localStorage.removeItem('pumpStartTimestamp');
+                sendMQTTCommand(TOPIC_TIMESTAMP_ON, "", true);
+            } else {
+                isPumpOn = false;
+            }
         }
         
-        toggleWaterfallAnimation(statusIsOn);
+        toggleWaterfallAnimation(isPumpOn);
         updatePumpTimerUI();
     } 
     else if (topic === TOPIC_TIMESTAMP_ON) {
-        if (payload && payload !== "") {
-            pumpStartTimestamp = parseInt(payload);
-            localStorage.setItem('pumpStartTimestamp', pumpStartTimestamp);
-            isPumpOn = true;
-            toggleWaterfallAnimation(true);
+        if (payload && payload !== "" && payload !== "0") {
+            let tOn = parseInt(payload);
+            if (!isNaN(tOn)) {
+                pumpStartTimestamp = tOn;
+                localStorage.setItem('pumpStartTimestamp', tOn);
+                isPumpOn = true;
+                toggleWaterfallAnimation(true);
+            }
         }
     }
     else if (topic === TOPIC_TIMESTAMP_OFF) {
-        if (payload && payload !== "") {
-            lastPumpOffTime = parseInt(payload);
-            localStorage.setItem('lastPumpOffTime', lastPumpOffTime);
+        if (payload && payload !== "" && payload !== "0") {
+            let tOff = parseInt(payload);
+            if (!isNaN(tOff)) {
+                lastPumpOffTime = tOff;
+                localStorage.setItem('lastPumpOffTime', tOff);
+            }
         }
     }
     else if (topic === TOPIC_SUB_MODE_STATUS) {
@@ -149,7 +167,7 @@ function onMessageArrived(message) {
 }
 
 /* =========================================================================
-   3. ANIMASI AIR MANCUR DINAMIS (MELEBUR KE PERMUKAAN AIR)
+   3. ANIMASI KUCURAN AIR TERJUN MELEBUR & DINAMIS
    ========================================================================= */
 function toggleWaterfallAnimation(active) {
     const streamElem = document.getElementById('waterfall-stream');
@@ -167,14 +185,13 @@ function adjustWaterfallHeight() {
     const streamElem = document.getElementById('waterfall-stream');
     if (!streamElem) return;
 
-    // Hitung persentase air saat ini
     let pct = (currentPersen === "INIT") ? 0 : Math.max(0, Math.min(100, parseFloat(currentPersen) || 0));
     
-    // Ketinggian air terjun disesuaikan sehingga menyentuh tepat di atas air
+    // Ketinggian pancuran air disesuaikan persis menyentuh permukaan air
     let targetStreamHeight = Math.max(0, 100 - pct);
     streamElem.style.height = targetStreamHeight + '%';
 
-    // Tambahkan elemen percikan (splash) jika belum ada
+    // Buat percikan air (splash) di permukaan jika belum ada
     if (!document.getElementById('waterfall-splash')) {
         const splash = document.createElement('div');
         splash.id = 'waterfall-splash';
@@ -184,10 +201,10 @@ function adjustWaterfallHeight() {
 }
 
 /* =========================================================================
-   4. SIMPAN TIMESTAMP TERPUSAT (MQTT + LOCALSTORAGE)
+   4. SIMPAN TIMESTAMP PERMANEN
    ========================================================================= */
-function saveTimestamp(topic, timestamp) {
-    localStorage.setItem(topic === TOPIC_TIMESTAMP_ON ? 'pumpStartTimestamp' : 'lastPumpOffTime', timestamp);
+function saveTimestamp(key, topic, timestamp) {
+    localStorage.setItem(key, timestamp.toString());
     sendMQTTCommand(topic, timestamp.toString(), true);
 }
 
@@ -209,6 +226,7 @@ function updatePumpTimerUI() {
 
     const now = Date.now();
 
+    // 1. Stopwatch Mesin Hidup
     if (isPumpOn && pumpStartTimestamp) {
         let diffSec = Math.floor((now - pumpStartTimestamp) / 1000);
         if (diffSec < 0) diffSec = 0;
@@ -224,6 +242,7 @@ function updatePumpTimerUI() {
         if (durationElem) durationElem.innerText = "00:00:00";
     }
 
+    // 2. Terakhir Mesin Hidup
     if (isPumpOn) {
         if (lastOnElem) lastOnElem.innerText = "Sedang Berjalan";
     } else if (lastPumpOffTime) {
@@ -264,16 +283,18 @@ function controlPump(state) {
     updatePillValue('pump-value', state);
     if (state === "ON" && !isPumpOn) {
         isPumpOn = true;
-        pumpStartTimestamp = Date.now();
-        saveTimestamp(TOPIC_TIMESTAMP_ON, pumpStartTimestamp);
+        if (!pumpStartTimestamp) {
+            pumpStartTimestamp = Date.now();
+            saveTimestamp('pumpStartTimestamp', TOPIC_TIMESTAMP_ON, pumpStartTimestamp);
+        }
         toggleWaterfallAnimation(true);
     } else if (state === "OFF" && isPumpOn) {
         isPumpOn = false;
         lastPumpOffTime = Date.now();
-        saveTimestamp(TOPIC_TIMESTAMP_OFF, lastPumpOffTime);
+        saveTimestamp('lastPumpOffTime', TOPIC_TIMESTAMP_OFF, lastPumpOffTime);
         pumpStartTimestamp = null;
-        sendMQTTCommand(TOPIC_TIMESTAMP_ON, "", true);
         localStorage.removeItem('pumpStartTimestamp');
+        sendMQTTCommand(TOPIC_TIMESTAMP_ON, "", true);
         toggleWaterfallAnimation(false);
     }
     updatePumpTimerUI();
@@ -298,7 +319,7 @@ function updatePillValue(elementId, value) {
 }
 
 /* =========================================================================
-   7. TAMPILAN VISUAL AIR TANDON & ADJUSTMENT KETINGGIAN AIR TERJUN
+   7. TAMPILAN VISUAL AIR TANDON
    ========================================================================= */
 function updateWaterUI(percentage, distance) {
     const percentElem = document.getElementById('water-percentage');
@@ -331,7 +352,6 @@ function updateWaterUI(percentage, distance) {
         fillElem.style.background = getWaterGradient(pctNum);
     }
 
-    // Sesuaikan posisi jatuhnya kucuran air secara otomatis
     if (isPumpOn) {
         adjustWaterfallHeight();
     }
