@@ -2,7 +2,7 @@
    1. KONFIGURASI KONEKSI MQTT (HIVEMQ CLOUD WEBSOCKET)
    ========================================================================= */
 const MQTT_HOST = "941be002ec5e47869861c1c75a6fcdc0.s1.eu.hivemq.cloud";
-const MQTT_PORT = 8884; // Port WebSocket SSL HiveMQ Cloud
+const MQTT_PORT = 8884; 
 const MQTT_PATH = "/mqtt";
 const MQTT_USER = "arif";
 const MQTT_PASS = "smarthome123";
@@ -70,10 +70,17 @@ function onConnectionLost(responseObject) {
 }
 
 /* =========================================================================
-   2. PENANGANAN PESAN & KONTROL TOMBOL
+   2. VARIABEL LOGIKA TIMING POMPA
    ========================================================================= */
 let currentPersen = "INIT";
 let currentJarak = "INIT";
+let isPumpOn = false;
+let pumpStartTime = null;
+let lastPumpOffTime = null;
+let pumpTimerInterval = null;
+
+// Jalankan perulangan pembaruan timer setiap detik
+setInterval(updatePumpTimerUI, 1000);
 
 function onMessageArrived(message) {
     const topic = message.destinationName;
@@ -91,6 +98,7 @@ function onMessageArrived(message) {
     } 
     else if (topic === TOPIC_SUB_POMPA_STATUS) {
         updatePillValue('pump-value', payload);
+        handlePumpStatusChange(payload === "ON");
     } 
     else if (topic === TOPIC_SUB_MODE_STATUS) {
         updatePillValue('mode-value', payload);
@@ -101,6 +109,71 @@ function onMessageArrived(message) {
     }
 }
 
+/* =========================================================================
+   3. LOGIKA STOPWATCH MESIN HIDUP & TERAKHIR HIDUP
+   ========================================================================= */
+function handlePumpStatusChange(statusON) {
+    if (statusON && !isPumpOn) {
+        // Mesin baru saja menyala
+        isPumpOn = true;
+        pumpStartTime = new Date();
+    } else if (!statusON && isPumpOn) {
+        // Mesin baru saja mati
+        isPumpOn = false;
+        lastPumpOffTime = new Date();
+    }
+    updatePumpTimerUI();
+}
+
+function updatePumpTimerUI() {
+    const durationElem = document.getElementById('pump-on-duration');
+    const lastOnElem = document.getElementById('pump-last-on');
+
+    const now = new Date();
+
+    // 1. Durasi Mesin Hidup (Stopwatch)
+    if (isPumpOn && pumpStartTime) {
+        let diffSec = Math.floor((now - pumpStartTime) / 1000);
+        let hrs = Math.floor(diffSec / 3600);
+        let mins = Math.floor((diffSec % 3600) / 60);
+        let secs = diffSec % 60;
+
+        let timeStr = `${padZero(hrs)}:${padZero(mins)}:${padZero(secs)}`;
+        if (durationElem) durationElem.innerText = timeStr;
+    } else {
+        if (durationElem) durationElem.innerText = "00:00:00 (Mati)";
+    }
+
+    // 2. Mesin Hidup Terakhir (... menit / jam lalu)
+    if (isPumpOn) {
+        if (lastOnElem) lastOnElem.innerText = "Sedang Berjalan";
+    } else if (lastPumpOffTime) {
+        let diffSec = Math.floor((now - lastPumpOffTime) / 1000);
+        let mins = Math.floor(diffSec / 60);
+        let hrs = Math.floor(mins / 60);
+
+        let timeAgoStr = "";
+        if (diffSec < 60) {
+            timeAgoStr = `${diffSec} detik lalu`;
+        } else if (mins < 60) {
+            timeAgoStr = `${mins} menit lalu`;
+        } else {
+            timeAgoStr = `${hrs} jam ${mins % 60} menit lalu`;
+        }
+
+        if (lastOnElem) lastOnElem.innerText = timeAgoStr;
+    } else {
+        if (lastOnElem) lastOnElem.innerText = "Belum pernah";
+    }
+}
+
+function padZero(num) {
+    return num < 10 ? '0' + num : num;
+}
+
+/* =========================================================================
+   4. KONTROL TOMBOL WEB
+   ========================================================================= */
 function sendMQTTCommand(topic, payload) {
     if (client.isConnected()) {
         var message = new Paho.MQTT.Message(payload);
@@ -119,6 +192,7 @@ function setSystemMode(mode) {
 
 function controlPump(state) {
     updatePillValue('pump-value', state);
+    handlePumpStatusChange(state === "ON");
     sendMQTTCommand(TOPIC_CMD_POMPA, state);
 }
 
@@ -140,7 +214,7 @@ function updatePillValue(elementId, value) {
 }
 
 /* =========================================================================
-   3. TAMPILAN VISUAL AIR TANDON
+   5. TAMPILAN VISUAL AIR TANDON
    ========================================================================= */
 function updateWaterUI(percentage, distance) {
     const percentElem = document.getElementById('water-percentage');
