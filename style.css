@@ -210,65 +210,88 @@ body {
 }
 
 /* =========================================================================
-   ANIMASI KUCURAN AIR SMOOTH & MELEBUR DINAMIS (WATERFALL DYNAMICS)
+   ANIMASI KUCURAN AIR REALISTIS (NATURAL WATERFALL STREAM)
    ========================================================================= */
 .waterfall-stream {
     position: absolute;
     top: 0;
     left: 50%;
     transform: translateX(-50%);
-    width: 12px;
-    height: 100%; /* Dikontrol secara dinamis oleh JS berdasarkan ketinggian air */
-    background: linear-gradient(180deg, rgba(255,255,255,0.9) 0%, rgba(56,189,248,0.85) 60%, rgba(14,165,233,0.95) 100%);
-    box-shadow: 0 0 8px rgba(56, 189, 248, 0.7);
+    width: 16px;
+    height: 100%;
     z-index: 4;
     opacity: 0;
-    transition: opacity 0.3s ease, height 0.4s ease-out;
+    transition: opacity 0.3s ease, height 0.3s ease-out;
     pointer-events: none;
-    border-radius: 0 0 6px 6px;
-    overflow: visible;
+    filter: drop-shadow(0px 0px 6px rgba(56, 189, 248, 0.8));
 }
 
 .waterfall-stream.active {
     opacity: 1;
 }
 
-/* Gelombang partikel meluncur cepat */
+/* Gelombang Aliran Air Lengkung/Berkelok Dynamic */
+.waterfall-stream::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: linear-gradient(180deg, 
+        rgba(255,255,255,0.95) 0%, 
+        rgba(56,189,248,0.85) 40%, 
+        rgba(14,165,233,0.95) 100%);
+    border-radius: 8px 8px 12px 12px;
+    animation: stream-wobble 0.3s ease-in-out infinite alternate;
+}
+
+@keyframes stream-wobble {
+    0% {
+        clip-path: polygon(20% 0%, 80% 0%, 85% 20%, 75% 40%, 85% 60%, 75% 80%, 90% 100%, 10% 100%, 25% 80%, 15% 60%, 25% 40%, 15% 20%);
+    }
+    100% {
+        clip-path: polygon(15% 0%, 85% 0%, 75% 20%, 85% 40%, 75% 60%, 85% 80%, 75% 100%, 25% 100%, 15% 80%, 25% 60%, 15% 40%, 25% 20%);
+    }
+}
+
 .waterfall-particle {
     position: absolute;
     width: 100%;
-    height: 20px;
+    height: 25px;
     background: linear-gradient(180deg, rgba(255,255,255,0.9), transparent);
-    animation: flow-smooth 0.4s linear infinite;
+    animation: flow-down-fast 0.35s linear infinite;
+    z-index: 5;
 }
 
 .particle2 {
-    animation-delay: 0.2s;
+    animation-delay: 0.18s;
 }
 
-@keyframes flow-smooth {
-    0% { top: -20px; opacity: 0.2; }
+@keyframes flow-down-fast {
+    0% { top: -25px; opacity: 0.4; }
     50% { opacity: 1; }
     100% { top: 100%; opacity: 0.2; }
 }
 
-/* Efek Percikan/Riak Air saat Jatuh Menyentuh Permukaan */
+/* Percikan Air Melebur di Permukaan Air */
 .waterfall-splash {
     position: absolute;
-    bottom: -6px;
+    bottom: -8px;
     left: 50%;
     transform: translateX(-50%);
-    width: 26px;
-    height: 8px;
-    background: rgba(255, 255, 255, 0.85);
+    width: 32px;
+    height: 10px;
+    background: rgba(255, 255, 255, 0.95);
     border-radius: 50%;
-    box-shadow: 0 0 10px rgba(255, 255, 255, 0.9);
-    animation: splash-ripple 0.5s ease-out infinite;
+    box-shadow: 0 0 12px rgba(255, 255, 255, 1);
+    animation: splash-foam 0.4s ease-out infinite;
+    z-index: 6;
 }
 
-@keyframes splash-ripple {
-    0% { transform: translateX(-50%) scale(0.5); opacity: 1; }
-    100% { transform: translateX(-50%) scale(1.6); opacity: 0; }
+@keyframes splash-foam {
+    0% { transform: translateX(-50%) scale(0.4); opacity: 1; }
+    100% { transform: translateX(-50%) scale(1.8); opacity: 0; }
 }
 
 /* Dynamic Liquid Level */
