@@ -75,10 +75,9 @@ function onConnectionLost(responseObject) {
 let currentPersen = "INIT";
 let currentJarak = "INIT";
 let isPumpOn = false;
-let pumpStartTimestamp = null; // Menyimpan waktu timestamp ms saat mesin menyala
+let pumpStartTimestamp = null;
 let lastPumpOffTime = null;
 
-// Loop timer independen untuk memperbarui angka di layar setiap detik
 setInterval(updatePumpTimerUI, 1000);
 
 function onMessageArrived(message) {
@@ -99,15 +98,16 @@ function onMessageArrived(message) {
         let statusIsOn = (payload.toUpperCase() === "ON");
         
         if (statusIsOn && !isPumpOn) {
-            // Mesin PERTAMA KALI berganti status ke ON
             isPumpOn = true;
             pumpStartTimestamp = Date.now();
         } else if (!statusIsOn && isPumpOn) {
-            // Mesin PERTAMA KALI berganti status ke OFF
             isPumpOn = false;
             lastPumpOffTime = Date.now();
             pumpStartTimestamp = null;
         }
+        
+        // AKTIFFKAN/NONAKTIFKAN ANIMASI KUCURAN AIR TERJUN
+        toggleWaterfallAnimation(statusIsOn);
         
         updatePumpTimerUI();
     } 
@@ -121,7 +121,21 @@ function onMessageArrived(message) {
 }
 
 /* =========================================================================
-   3. HITUNG DAN REFRESH TIMEOUT (STOPWATCH)
+   3. ANIMASI KUCURAN AIR TERJUN (TOGGLE)
+   ========================================================================= */
+function toggleWaterfallAnimation(active) {
+    const streamElem = document.getElementById('waterfall-stream');
+    if (streamElem) {
+        if (active) {
+            streamElem.classList.add('active');
+        } else {
+            streamElem.classList.remove('active');
+        }
+    }
+}
+
+/* =========================================================================
+   4. HITUNG DAN REFRESH TIMEOUT (STOPWATCH)
    ========================================================================= */
 function updatePumpTimerUI() {
     const durationElem = document.getElementById('pump-on-duration');
@@ -129,7 +143,6 @@ function updatePumpTimerUI() {
 
     const now = Date.now();
 
-    // 1. Durasi Mesin Hidup (Stopwatch)
     if (isPumpOn && pumpStartTimestamp) {
         let diffSec = Math.floor((now - pumpStartTimestamp) / 1000);
         let hrs = Math.floor(diffSec / 3600);
@@ -143,7 +156,6 @@ function updatePumpTimerUI() {
         if (durationElem) durationElem.innerText = "00:00:00";
     }
 
-    // 2. Terakhir Mesin Hidup (... detik / menit / jam lalu)
     if (isPumpOn) {
         if (lastOnElem) lastOnElem.innerText = "Sedang Berjalan";
     } else if (lastPumpOffTime) {
@@ -171,7 +183,7 @@ function padZero(num) {
 }
 
 /* =========================================================================
-   4. KONTROL TOMBOL WEB
+   5. KONTROL TOMBOL WEB
    ========================================================================= */
 function sendMQTTCommand(topic, payload) {
     if (client.isConnected()) {
@@ -194,10 +206,12 @@ function controlPump(state) {
     if (state === "ON" && !isPumpOn) {
         isPumpOn = true;
         pumpStartTimestamp = Date.now();
+        toggleWaterfallAnimation(true);
     } else if (state === "OFF" && isPumpOn) {
         isPumpOn = false;
         lastPumpOffTime = Date.now();
         pumpStartTimestamp = null;
+        toggleWaterfallAnimation(false);
     }
     updatePumpTimerUI();
     sendMQTTCommand(TOPIC_CMD_POMPA, state);
@@ -221,7 +235,7 @@ function updatePillValue(elementId, value) {
 }
 
 /* =========================================================================
-   5. TAMPILAN VISUAL AIR TANDON
+   6. TAMPILAN VISUAL AIR TANDON
    ========================================================================= */
 function updateWaterUI(percentage, distance) {
     const percentElem = document.getElementById('water-percentage');
