@@ -70,22 +70,20 @@ function onConnectionLost(responseObject) {
 }
 
 /* =========================================================================
-   2. MENERIMA DATA TELEMETRI & EVENT LOGIKA
+   2. MENERIMA DATA TELEMETRI & LOGIKA TIMING
    ========================================================================= */
 let currentPersen = "INIT";
 let currentJarak = "INIT";
 let isPumpOn = false;
-let pumpStartTime = null;
+let pumpStartTimestamp = null; // Menyimpan waktu timestamp ms saat mesin menyala
 let lastPumpOffTime = null;
 
-// Perbarui timer stopwatch setiap 1 detik sekali
+// Loop timer independen untuk memperbarui angka di layar setiap detik
 setInterval(updatePumpTimerUI, 1000);
 
 function onMessageArrived(message) {
     const topic = message.destinationName;
     const payload = message.payloadString.trim();
-
-    console.log(`[MQTT IN] ${topic} -> ${payload}`);
 
     if (topic === TOPIC_SUB_AIR_PERSEN) {
         currentPersen = (payload === "INIT") ? "INIT" : parseFloat(payload);
@@ -97,7 +95,21 @@ function onMessageArrived(message) {
     } 
     else if (topic === TOPIC_SUB_POMPA_STATUS) {
         updatePillValue('pump-value', payload);
-        handlePumpStatusChange(payload.toUpperCase() === "ON");
+        
+        let statusIsOn = (payload.toUpperCase() === "ON");
+        
+        if (statusIsOn && !isPumpOn) {
+            // Mesin PERTAMA KALI berganti status ke ON
+            isPumpOn = true;
+            pumpStartTimestamp = Date.now();
+        } else if (!statusIsOn && isPumpOn) {
+            // Mesin PERTAMA KALI berganti status ke OFF
+            isPumpOn = false;
+            lastPumpOffTime = Date.now();
+            pumpStartTimestamp = null;
+        }
+        
+        updatePumpTimerUI();
     } 
     else if (topic === TOPIC_SUB_MODE_STATUS) {
         updatePillValue('mode-value', payload);
@@ -109,46 +121,29 @@ function onMessageArrived(message) {
 }
 
 /* =========================================================================
-   3. LOGIKA STOPWATCH MESIN HIDUP & TERAKHIR HIDUP
+   3. HITUNG DAN REFRESH TIMEOUT (STOPWATCH)
    ========================================================================= */
-function handlePumpStatusChange(statusON) {
-    if (statusON) {
-        // Kunci waktu mulai HANYA saat transisi dari MATI ke HIDUP
-        if (!isPumpOn) {
-            isPumpOn = true;
-            pumpStartTime = new Date();
-        }
-    } else {
-        // Catat waktu mati HANYA saat transisi dari HIDUP ke MATI
-        if (isPumpOn) {
-            isPumpOn = false;
-            lastPumpOffTime = new Date();
-            pumpStartTime = null;
-        }
-    }
-    updatePumpTimerUI();
-}
-
 function updatePumpTimerUI() {
     const durationElem = document.getElementById('pump-on-duration');
     const lastOnElem = document.getElementById('pump-last-on');
 
-    const now = new Date();
+    const now = Date.now();
 
-    // 1. Durasi Mesin Hidup saat ini (Stopwatch)
-    if (isPumpOn && pumpStartTime) {
-        let diffSec = Math.floor((now - pumpStartTime) / 1000);
+    // 1. Durasi Mesin Hidup (Stopwatch)
+    if (isPumpOn && pumpStartTimestamp) {
+        let diffSec = Math.floor((now - pumpStartTimestamp) / 1000);
         let hrs = Math.floor(diffSec / 3600);
         let mins = Math.floor((diffSec % 3600) / 60);
         let secs = diffSec % 60;
 
-        let timeStr = `${padZero(hrs)}:${padZero(mins)}:${padZero(secs)}`;
-        if (durationElem) durationElem.innerText = timeStr;
+        if (durationElem) {
+            durationElem.innerText = `${padZero(hrs)}:${padZero(mins)}:${padZero(secs)}`;
+        }
     } else {
         if (durationElem) durationElem.innerText = "00:00:00";
     }
 
-    // 2. Terakhir Mesin Hidup (... menit / jam lalu)
+    // 2. Terakhir Mesin Hidup (... detik / menit / jam lalu)
     if (isPumpOn) {
         if (lastOnElem) lastOnElem.innerText = "Sedang Berjalan";
     } else if (lastPumpOffTime) {
@@ -176,7 +171,7 @@ function padZero(num) {
 }
 
 /* =========================================================================
-   4. KONTROL TOMBOL DASHBOARD (PUBLISH COMMAND KE ESP32)
+   4. KONTROL TOMBOL WEB
    ========================================================================= */
 function sendMQTTCommand(topic, payload) {
     if (client.isConnected()) {
@@ -196,7 +191,15 @@ function setSystemMode(mode) {
 
 function controlPump(state) {
     updatePillValue('pump-value', state);
-    handlePumpStatusChange(state === "ON");
+    if (state === "ON" && !isPumpOn) {
+        isPumpOn = true;
+        pumpStartTimestamp = Date.now();
+    } else if (state === "OFF" && isPumpOn) {
+        isPumpOn = false;
+        lastPumpOffTime = Date.now();
+        pumpStartTimestamp = null;
+    }
+    updatePumpTimerUI();
     sendMQTTCommand(TOPIC_CMD_POMPA, state);
 }
 
@@ -218,7 +221,7 @@ function updatePillValue(elementId, value) {
 }
 
 /* =========================================================================
-   5. TAMPILAN VISUAL AIR TANDON & TRANSIKSI WARNA
+   5. TAMPILAN VISUAL AIR TANDON
    ========================================================================= */
 function updateWaterUI(percentage, distance) {
     const percentElem = document.getElementById('water-percentage');
