@@ -36,6 +36,7 @@ body {
     max-width: 1200px;
 }
 
+/* Header */
 .main-header {
     display: flex;
     justify-content: space-between;
@@ -77,6 +78,7 @@ body {
     color: var(--text-muted);
 }
 
+/* Server Status Indicator */
 .server-status-card {
     display: flex;
     align-items: center;
@@ -117,6 +119,7 @@ body {
     font-weight: 700;
 }
 
+/* Dashboard Grid */
 .dashboard-grid {
     display: grid;
     grid-template-columns: 1fr;
@@ -129,6 +132,7 @@ body {
     }
 }
 
+/* Card Style */
 .card {
     background: var(--card-bg);
     border-radius: var(--radius-lg);
@@ -158,6 +162,7 @@ body {
     color: var(--text-muted);
 }
 
+/* Water Tank Visual */
 .tank-wrapper {
     display: flex;
     justify-content: center;
@@ -204,6 +209,48 @@ body {
     padding: 8px 0;
 }
 
+/* =========================================================================
+   ANIMASI AIR TERJUN / KUCURAN AIR (WATERFALL STREAM)
+   ========================================================================= */
+.waterfall-stream {
+    position: absolute;
+    top: 0;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 18px;
+    height: 100%;
+    background: linear-gradient(180deg, rgba(56, 189, 248, 0.9) 0%, rgba(14, 165, 233, 0.7) 100%);
+    box-shadow: 0 0 12px rgba(56, 189, 248, 0.6);
+    z-index: 4;
+    opacity: 0; /* Tersembunyi saat Mesin OFF */
+    transition: opacity 0.4s ease-in-out;
+    pointer-events: none;
+    border-radius: 0 0 8px 8px;
+}
+
+.waterfall-stream.active {
+    opacity: 1; /* Tampil saat Mesin ON */
+}
+
+.waterfall-particle {
+    position: absolute;
+    width: 100%;
+    height: 30px;
+    background: linear-gradient(180deg, rgba(255,255,255,0.8), transparent);
+    animation: flow-down 0.6s linear infinite;
+}
+
+.particle2 {
+    animation-delay: 0.3s;
+}
+
+@keyframes flow-down {
+    0% { top: -30px; opacity: 0.3; }
+    50% { opacity: 1; }
+    100% { top: 100%; opacity: 0.1; }
+}
+
+/* Dynamic Liquid Level */
 .water-level {
     position: absolute;
     bottom: 0;
@@ -212,8 +259,10 @@ body {
     background: linear-gradient(180deg, #00c5ff 0%, #0088ff 100%);
     transition: height 0.8s ease-in-out, background 0.8s ease;
     border-radius: 0 0 18px 18px;
+    z-index: 2;
 }
 
+/* Wave Animation */
 .wave {
     position: absolute;
     top: -12px;
@@ -243,6 +292,7 @@ body {
     100% { transform: translateX(-50%); }
 }
 
+/* Tank Stats */
 .tank-stats {
     display: grid;
     grid-template-columns: repeat(3, 1fr);
@@ -289,6 +339,7 @@ body {
     color: #475569;
 }
 
+/* Control Column */
 .control-column {
     display: flex;
     flex-direction: column;
@@ -320,6 +371,7 @@ body {
     margin-right: 4px;
 }
 
+/* Pump Timer Bar */
 .pump-timer-bar {
     display: flex;
     justify-content: space-between;
@@ -348,6 +400,7 @@ body {
 .text-success { color: var(--success) !important; }
 .text-muted { color: var(--text-muted) !important; }
 
+/* Buttons */
 .button-group {
     display: flex;
     gap: 10px;
@@ -392,6 +445,7 @@ body {
     color: #fff;
 }
 
+/* System Action */
 .system-action-card {
     padding: 16px 20px;
     background: #fff5f5;
@@ -407,6 +461,7 @@ body {
     color: #c53030;
 }
 
+/* Mobile Responsive */
 @media (max-width: 600px) {
     body { padding: 12px; }
     .control-body { flex-direction: column; align-items: stretch; }
