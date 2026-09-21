@@ -9,7 +9,7 @@ const MQTT_PASS = "smarthome123";
 
 const CLIENT_ID = "WebDashboard_" + Math.random().toString(16).substr(2, 8);
 
-// Topic Sesuai ESP32
+// Topic Subscriptions & Commands Sesuai Firmware ESP32
 const TOPIC_SUB_AIR_PERSEN   = "smarthome/air/persen";
 const TOPIC_SUB_AIR_TINGGI   = "smarthome/air/tinggi";
 const TOPIC_SUB_POMPA_STATUS = "smarthome/pompa/status";
@@ -70,16 +70,15 @@ function onConnectionLost(responseObject) {
 }
 
 /* =========================================================================
-   2. VARIABEL LOGIKA TIMING POMPA
+   2. MENERIMA DATA TELEMETRI & EVENT LOGIKA
    ========================================================================= */
 let currentPersen = "INIT";
 let currentJarak = "INIT";
 let isPumpOn = false;
 let pumpStartTime = null;
 let lastPumpOffTime = null;
-let pumpTimerInterval = null;
 
-// Jalankan perulangan pembaruan timer setiap detik
+// Perbarui timer stopwatch setiap 1 detik sekali
 setInterval(updatePumpTimerUI, 1000);
 
 function onMessageArrived(message) {
@@ -98,7 +97,7 @@ function onMessageArrived(message) {
     } 
     else if (topic === TOPIC_SUB_POMPA_STATUS) {
         updatePillValue('pump-value', payload);
-        handlePumpStatusChange(payload === "ON");
+        handlePumpStatusChange(payload.toUpperCase() === "ON");
     } 
     else if (topic === TOPIC_SUB_MODE_STATUS) {
         updatePillValue('mode-value', payload);
@@ -113,14 +112,19 @@ function onMessageArrived(message) {
    3. LOGIKA STOPWATCH MESIN HIDUP & TERAKHIR HIDUP
    ========================================================================= */
 function handlePumpStatusChange(statusON) {
-    if (statusON && !isPumpOn) {
-        // Mesin baru saja menyala
-        isPumpOn = true;
-        pumpStartTime = new Date();
-    } else if (!statusON && isPumpOn) {
-        // Mesin baru saja mati
-        isPumpOn = false;
-        lastPumpOffTime = new Date();
+    if (statusON) {
+        // Kunci waktu mulai HANYA saat transisi dari MATI ke HIDUP
+        if (!isPumpOn) {
+            isPumpOn = true;
+            pumpStartTime = new Date();
+        }
+    } else {
+        // Catat waktu mati HANYA saat transisi dari HIDUP ke MATI
+        if (isPumpOn) {
+            isPumpOn = false;
+            lastPumpOffTime = new Date();
+            pumpStartTime = null;
+        }
     }
     updatePumpTimerUI();
 }
@@ -131,7 +135,7 @@ function updatePumpTimerUI() {
 
     const now = new Date();
 
-    // 1. Durasi Mesin Hidup (Stopwatch)
+    // 1. Durasi Mesin Hidup saat ini (Stopwatch)
     if (isPumpOn && pumpStartTime) {
         let diffSec = Math.floor((now - pumpStartTime) / 1000);
         let hrs = Math.floor(diffSec / 3600);
@@ -141,10 +145,10 @@ function updatePumpTimerUI() {
         let timeStr = `${padZero(hrs)}:${padZero(mins)}:${padZero(secs)}`;
         if (durationElem) durationElem.innerText = timeStr;
     } else {
-        if (durationElem) durationElem.innerText = "00:00:00 (Mati)";
+        if (durationElem) durationElem.innerText = "00:00:00";
     }
 
-    // 2. Mesin Hidup Terakhir (... menit / jam lalu)
+    // 2. Terakhir Mesin Hidup (... menit / jam lalu)
     if (isPumpOn) {
         if (lastOnElem) lastOnElem.innerText = "Sedang Berjalan";
     } else if (lastPumpOffTime) {
@@ -172,7 +176,7 @@ function padZero(num) {
 }
 
 /* =========================================================================
-   4. KONTROL TOMBOL WEB
+   4. KONTROL TOMBOL DASHBOARD (PUBLISH COMMAND KE ESP32)
    ========================================================================= */
 function sendMQTTCommand(topic, payload) {
     if (client.isConnected()) {
@@ -214,7 +218,7 @@ function updatePillValue(elementId, value) {
 }
 
 /* =========================================================================
-   5. TAMPILAN VISUAL AIR TANDON
+   5. TAMPILAN VISUAL AIR TANDON & TRANSIKSI WARNA
    ========================================================================= */
 function updateWaterUI(percentage, distance) {
     const percentElem = document.getElementById('water-percentage');
