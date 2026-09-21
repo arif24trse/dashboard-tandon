@@ -38,7 +38,7 @@
         <!-- Main Dashboard Layout -->
         <main class="dashboard-grid">
             
-            <!-- Left/Top Column: Visual Water Tank -->
+            <!-- Left Column: Visual Water Tank -->
             <section class="card tank-card">
                 <div class="card-header">
                     <i class="fa-solid fa-glass-water"></i>
@@ -49,7 +49,6 @@
                     <div class="tank-container">
                         <div class="tank-cap"></div>
                         <div class="tank-glass">
-                            <!-- Ruler / Water Scale -->
                             <div class="tank-ruler">
                                 <span>100%</span>
                                 <span>75%</span>
@@ -58,7 +57,6 @@
                                 <span>0%</span>
                             </div>
 
-                            <!-- Dynamic Liquid Level -->
                             <div class="water-level" id="water-fill" style="height: 0%;">
                                 <div class="wave wave1"></div>
                                 <div class="wave wave2"></div>
@@ -67,7 +65,6 @@
                     </div>
                 </div>
 
-                <!-- Primary Sensor Info -->
                 <div class="tank-stats">
                     <div class="stat-box">
                         <i class="fa-solid fa-percent stat-icon"></i>
@@ -87,7 +84,7 @@
                 </div>
             </section>
 
-            <!-- Right/Bottom Column: Control & Status Cards -->
+            <!-- Right Column: Controls -->
             <section class="control-column">
                 
                 <!-- System Mode Card -->
@@ -115,7 +112,7 @@
                     </div>
                 </div>
 
-                <!-- Pump Control Card -->
+                <!-- Pump Control Card (WITH RUNTIME TIMER) -->
                 <div class="card info-control-card">
                     <div class="card-title">
                         <i class="fa-solid fa-pump-soap"></i>
@@ -136,6 +133,18 @@
                             <button class="btn btn-danger" id="btn-pump-off" onclick="controlPump('OFF')">
                                 <i class="fa-solid fa-circle-stop"></i> Pompa OFF
                             </button>
+                        </div>
+                    </div>
+
+                    <!-- PUMP TIMER INFO BAR -->
+                    <div class="pump-timer-bar">
+                        <div class="timer-item">
+                            <i class="fa-solid fa-stopwatch text-success"></i>
+                            <span>Mesin Hidup: <strong id="pump-on-duration">00:00:00</strong></span>
+                        </div>
+                        <div class="timer-item">
+                            <i class="fa-solid fa-clock-rotate-left text-muted"></i>
+                            <span>Terakhir Hidup: <strong id="pump-last-on">Belum pernah</strong></span>
                         </div>
                     </div>
                 </div>
