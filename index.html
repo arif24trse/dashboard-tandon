@@ -4,14 +4,17 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Smart Home Tandon - Water Tank Monitoring</title>
+    <!-- Font Inter & FontAwesome Icons -->
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- MQTT Paho Library -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/paho-mqtt/1.0.1/mqttws31.min.js" type="text/javascript"></script>
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
 
     <div class="app-container">
+        <!-- Header Section -->
         <header class="main-header">
             <div class="brand">
                 <div class="brand-icon">
@@ -32,7 +35,10 @@
             </div>
         </header>
 
+        <!-- Main Dashboard Layout -->
         <main class="dashboard-grid">
+            
+            <!-- Left Column: Visual Water Tank -->
             <section class="card tank-card">
                 <div class="card-header">
                     <i class="fa-solid fa-glass-water"></i>
@@ -43,6 +49,7 @@
                     <div class="tank-container">
                         <div class="tank-cap"></div>
                         <div class="tank-glass">
+                            <!-- Ruler / Water Scale -->
                             <div class="tank-ruler">
                                 <span>100%</span>
                                 <span>75%</span>
@@ -51,6 +58,13 @@
                                 <span>0%</span>
                             </div>
 
+                            <!-- PIPA & ELEMEN AIR TERJUN (WATERFALL EFFECT) -->
+                            <div class="waterfall-stream" id="waterfall-stream">
+                                <div class="waterfall-particle particle1"></div>
+                                <div class="waterfall-particle particle2"></div>
+                            </div>
+
+                            <!-- Dynamic Liquid Level -->
                             <div class="water-level" id="water-fill" style="height: 0%;">
                                 <div class="wave wave1"></div>
                                 <div class="wave wave2"></div>
@@ -59,6 +73,7 @@
                     </div>
                 </div>
 
+                <!-- Primary Sensor Info -->
                 <div class="tank-stats">
                     <div class="stat-box">
                         <i class="fa-solid fa-percent stat-icon"></i>
@@ -78,7 +93,10 @@
                 </div>
             </section>
 
+            <!-- Right Column: Controls -->
             <section class="control-column">
+                
+                <!-- System Mode Card -->
                 <div class="card info-control-card">
                     <div class="card-title">
                         <i class="fa-solid fa-sliders"></i>
@@ -103,6 +121,7 @@
                     </div>
                 </div>
 
+                <!-- Pump Control Card -->
                 <div class="card info-control-card">
                     <div class="card-title">
                         <i class="fa-solid fa-pump-soap"></i>
@@ -126,6 +145,7 @@
                         </div>
                     </div>
 
+                    <!-- PUMP TIMER INFO BAR -->
                     <div class="pump-timer-bar">
                         <div class="timer-item">
                             <i class="fa-solid fa-stopwatch text-success"></i>
@@ -138,6 +158,7 @@
                     </div>
                 </div>
 
+                <!-- Buzzer Control Card -->
                 <div class="card info-control-card">
                     <div class="card-title">
                         <i class="fa-solid fa-volume-high"></i>
@@ -162,6 +183,7 @@
                     </div>
                 </div>
 
+                <!-- Hardware Action Card -->
                 <div class="card system-action-card">
                     <div class="system-action-body">
                         <div>
@@ -173,6 +195,7 @@
                         </button>
                     </div>
                 </div>
+
             </section>
         </main>
     </div>
