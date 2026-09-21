@@ -210,44 +210,65 @@ body {
 }
 
 /* =========================================================================
-   ANIMASI AIR TERJUN / KUCURAN AIR (WATERFALL STREAM)
+   ANIMASI KUCURAN AIR SMOOTH & MELEBUR DINAMIS (WATERFALL DYNAMICS)
    ========================================================================= */
 .waterfall-stream {
     position: absolute;
     top: 0;
     left: 50%;
     transform: translateX(-50%);
-    width: 18px;
-    height: 100%;
-    background: linear-gradient(180deg, rgba(56, 189, 248, 0.9) 0%, rgba(14, 165, 233, 0.7) 100%);
-    box-shadow: 0 0 12px rgba(56, 189, 248, 0.6);
+    width: 12px;
+    height: 100%; /* Dikontrol secara dinamis oleh JS berdasarkan ketinggian air */
+    background: linear-gradient(180deg, rgba(255,255,255,0.9) 0%, rgba(56,189,248,0.85) 60%, rgba(14,165,233,0.95) 100%);
+    box-shadow: 0 0 8px rgba(56, 189, 248, 0.7);
     z-index: 4;
-    opacity: 0; /* Tersembunyi saat Mesin OFF */
-    transition: opacity 0.4s ease-in-out;
+    opacity: 0;
+    transition: opacity 0.3s ease, height 0.4s ease-out;
     pointer-events: none;
-    border-radius: 0 0 8px 8px;
+    border-radius: 0 0 6px 6px;
+    overflow: visible;
 }
 
 .waterfall-stream.active {
-    opacity: 1; /* Tampil saat Mesin ON */
+    opacity: 1;
 }
 
+/* Gelombang partikel meluncur cepat */
 .waterfall-particle {
     position: absolute;
     width: 100%;
-    height: 30px;
-    background: linear-gradient(180deg, rgba(255,255,255,0.8), transparent);
-    animation: flow-down 0.6s linear infinite;
+    height: 20px;
+    background: linear-gradient(180deg, rgba(255,255,255,0.9), transparent);
+    animation: flow-smooth 0.4s linear infinite;
 }
 
 .particle2 {
-    animation-delay: 0.3s;
+    animation-delay: 0.2s;
 }
 
-@keyframes flow-down {
-    0% { top: -30px; opacity: 0.3; }
+@keyframes flow-smooth {
+    0% { top: -20px; opacity: 0.2; }
     50% { opacity: 1; }
-    100% { top: 100%; opacity: 0.1; }
+    100% { top: 100%; opacity: 0.2; }
+}
+
+/* Efek Percikan/Riak Air saat Jatuh Menyentuh Permukaan */
+.waterfall-splash {
+    position: absolute;
+    bottom: -6px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 26px;
+    height: 8px;
+    background: rgba(255, 255, 255, 0.85);
+    border-radius: 50%;
+    box-shadow: 0 0 10px rgba(255, 255, 255, 0.9);
+    animation: splash-ripple 0.5s ease-out infinite;
+}
+
+@keyframes splash-ripple {
+    0% { transform: translateX(-50%) scale(0.5); opacity: 1; }
+    100% { transform: translateX(-50%) scale(1.6); opacity: 0; }
 }
 
 /* Dynamic Liquid Level */
