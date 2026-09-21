@@ -36,7 +36,6 @@ body {
     max-width: 1200px;
 }
 
-/* Header */
 .main-header {
     display: flex;
     justify-content: space-between;
@@ -78,7 +77,6 @@ body {
     color: var(--text-muted);
 }
 
-/* Server Status Indicator */
 .server-status-card {
     display: flex;
     align-items: center;
@@ -119,7 +117,6 @@ body {
     font-weight: 700;
 }
 
-/* Dashboard Grid */
 .dashboard-grid {
     display: grid;
     grid-template-columns: 1fr;
@@ -132,7 +129,6 @@ body {
     }
 }
 
-/* Card Style */
 .card {
     background: var(--card-bg);
     border-radius: var(--radius-lg);
@@ -162,7 +158,6 @@ body {
     color: var(--text-muted);
 }
 
-/* Water Tank Visual */
 .tank-wrapper {
     display: flex;
     justify-content: center;
@@ -219,7 +214,6 @@ body {
     border-radius: 0 0 18px 18px;
 }
 
-/* Wave Animation */
 .wave {
     position: absolute;
     top: -12px;
@@ -249,7 +243,6 @@ body {
     100% { transform: translateX(-50%); }
 }
 
-/* Tank Stats */
 .tank-stats {
     display: grid;
     grid-template-columns: repeat(3, 1fr);
@@ -296,7 +289,6 @@ body {
     color: #475569;
 }
 
-/* Control Column */
 .control-column {
     display: flex;
     flex-direction: column;
@@ -328,7 +320,6 @@ body {
     margin-right: 4px;
 }
 
-/* Pump Timer Bar */
 .pump-timer-bar {
     display: flex;
     justify-content: space-between;
@@ -357,7 +348,6 @@ body {
 .text-success { color: var(--success) !important; }
 .text-muted { color: var(--text-muted) !important; }
 
-/* Buttons */
 .button-group {
     display: flex;
     gap: 10px;
@@ -402,7 +392,6 @@ body {
     color: #fff;
 }
 
-/* System Action */
 .system-action-card {
     padding: 16px 20px;
     background: #fff5f5;
@@ -418,7 +407,6 @@ body {
     color: #c53030;
 }
 
-/* Mobile Responsive */
 @media (max-width: 600px) {
     body { padding: 12px; }
     .control-body { flex-direction: column; align-items: stretch; }
